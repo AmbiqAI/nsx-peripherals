@@ -4,12 +4,13 @@
 board-level peripherals in NSX applications.
 
 Contents:
-- power configuration helpers
 - GPIO-backed button and trigger helpers
 - PSRAM and NVM support where available
 
 The public API is exported from `includes-api/`. This repo is intended to remain
 lightweight and board-agnostic where possible.
+
+Power management helpers now live in `nsx-power`.
 
 For button monitoring, prefer the generic GPIO input API:
 

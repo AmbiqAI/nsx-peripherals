@@ -29,6 +29,10 @@ file(GLOB nsx_peripherals_arch_sources CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_LIST_DIR}/src/${NSX_PERIPHERALS_ARCH_DIR}/*.cpp
 )
 
+list(FILTER nsx_peripherals_common_sources EXCLUDE REGEX "/ns_power\\.(c|cc|cpp)$")
+list(FILTER nsx_peripherals_arch_sources EXCLUDE REGEX "/ns_power\\.(c|cc|cpp)$")
+list(FILTER nsx_peripherals_arch_sources EXCLUDE REGEX "/ns_tempco\\.(c|cc|cpp)$")
+
 add_library(nsx_peripherals STATIC
     ${nsx_peripherals_common_sources}
     ${nsx_peripherals_arch_sources}
