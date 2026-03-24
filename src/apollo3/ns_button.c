@@ -2,9 +2,9 @@
 //
 //! @file button.c
 //!
-//! @brief Utility for reading EVB Buttons.
+//! @brief Utility for reading board buttons and GPIO-backed trigger inputs.
 //!
-//! Purpose: Reading EVB buttons
+//! Purpose: Reading board buttons and other simple GPIO-backed inputs.
 //!
 //
 //*****************************************************************************
@@ -23,12 +23,30 @@
 #include "ns_core.h"
 #include "ns_peripherals_button.h"
 
-extern int volatile *g_ns_peripheral_button0;
-extern int volatile *g_ns_peripheral_button1;
-extern int volatile *g_ns_peripheral_joulescope_trigger;
-extern void ns_button_0_handler(void *pArg);
-extern void ns_button_1_handler(void *pArg);
-extern void ns_joulescope_trigger_handler(void *pArg);
+extern int volatile *g_ns_peripheral_button_flags[NS_BUTTON_MAX_INPUTS];
+extern void ns_button_input_handler_0(void *pArg);
+extern void ns_button_input_handler_1(void *pArg);
+extern void ns_button_input_handler_2(void *pArg);
+
+static am_hal_gpio_handler_t ns_button_handler_for_index(uint32_t index) {
+    switch (index) {
+    case 0:
+        return (am_hal_gpio_handler_t)ns_button_input_handler_0;
+    case 1:
+        return (am_hal_gpio_handler_t)ns_button_input_handler_1;
+    case 2:
+        return (am_hal_gpio_handler_t)ns_button_input_handler_2;
+    default:
+        return NULL;
+    }
+}
+
+static const am_hal_gpio_pincfg_t *ns_button_input_cfg(ns_button_input_mode_t mode) {
+    if (mode == NS_BUTTON_INPUT_MODE_INPUT_PULLUP) {
+        return &g_AM_HAL_GPIO_INPUT_PULLUP;
+    }
+    return &g_AM_HAL_GPIO_INPUT;
+}
 
 /**
  * @brief GPIO Button0 ISR handler
@@ -52,59 +70,78 @@ void am_gpio_isr(void) {
 }
 
 uint32_t ns_button_platform_init(ns_button_config_t *cfg) {
-    // uint32_t ui32IntStatus;
-    // uint32_t ui32BUTTON0GpioNum = AM_BSP_GPIO_BUTTON0;
-    // uint32_t ui32BUTTON1GpioNum = AM_BSP_GPIO_BUTTON1;
-    uint32_t ui32JoulescopeTriggerGpioNum = 24;
+    uint32_t input_count = 0;
+    uint32_t idx = 0;
+    ns_button_input_t inputs[NS_BUTTON_MAX_INPUTS] = {0};
+    bool legacy_button_cfg[NS_BUTTON_MAX_INPUTS] = {false};
 
-    // Configure the button pin.
-    if (cfg->button_0_enable) {
-        if (cfg->button_0_flag == NULL) {
-            return NS_STATUS_INVALID_HANDLE;
-        }
-        am_hal_gpio_pinconfig(AM_BSP_GPIO_BUTTON0, g_AM_BSP_GPIO_BUTTON0);
-        g_ns_peripheral_button0 = cfg->button_0_flag;
-    }
-    if (cfg->button_1_enable) {
-        if (cfg->button_1_flag == NULL) {
-            return NS_STATUS_INVALID_HANDLE;
-        }
-        am_hal_gpio_pinconfig(AM_BSP_GPIO_BUTTON1, g_AM_BSP_GPIO_BUTTON1);
-        g_ns_peripheral_button1 = cfg->button_1_flag;
+    input_count = cfg->input_count;
+    if (input_count > NS_BUTTON_MAX_INPUTS) {
+        return NS_STATUS_INVALID_CONFIG;
     }
 
-    if (cfg->joulescope_trigger_enable) {
-        if (cfg->joulescope_trigger_flag == NULL) {
-            return NS_STATUS_INVALID_HANDLE;
+    if (input_count == 0) {
+        if (cfg->button_0_enable && idx < NS_BUTTON_MAX_INPUTS) {
+            inputs[idx] = (ns_button_input_t){
+                .enable = true,
+                .gpio_num = AM_BSP_GPIO_BUTTON0,
+                .mode = NS_BUTTON_INPUT_MODE_INPUT_PULLUP,
+                .flag = cfg->button_0_flag,
+            };
+            legacy_button_cfg[idx++] = true;
         }
-        am_hal_gpio_pinconfig(ui32JoulescopeTriggerGpioNum, g_AM_HAL_GPIO_INPUT);
-        g_ns_peripheral_joulescope_trigger = cfg->joulescope_trigger_flag;
+        if (cfg->button_1_enable && idx < NS_BUTTON_MAX_INPUTS) {
+            inputs[idx] = (ns_button_input_t){
+                .enable = true,
+                .gpio_num = AM_BSP_GPIO_BUTTON1,
+                .mode = NS_BUTTON_INPUT_MODE_INPUT_PULLUP,
+                .flag = cfg->button_1_flag,
+            };
+            legacy_button_cfg[idx++] = true;
+        }
+        if (cfg->joulescope_trigger_enable && idx < NS_BUTTON_MAX_INPUTS) {
+            inputs[idx++] = (ns_button_input_t){
+                .enable = true,
+                .gpio_num = 24,
+                .mode = NS_BUTTON_INPUT_MODE_INPUT,
+                .flag = cfg->joulescope_trigger_flag,
+            };
+        }
+        input_count = idx;
+    } else {
+        for (idx = 0; idx < input_count; ++idx) {
+            inputs[idx] = cfg->inputs[idx];
+        }
     }
 
-    // Register interrupt handlers
-    if (cfg->button_0_enable) {
-        AM_HAL_GPIO_MASKCREATE(GpioIntMask0);
-        am_hal_gpio_interrupt_register(
-            AM_BSP_GPIO_BUTTON0, (am_hal_gpio_handler_t)ns_button_0_handler);
-        am_hal_gpio_interrupt_clear(AM_HAL_GPIO_MASKBIT(pGpioIntMask0, AM_BSP_GPIO_BUTTON0));
-        am_hal_gpio_interrupt_enable(AM_HAL_GPIO_MASKBIT(pGpioIntMask0, AM_BSP_GPIO_BUTTON0));
+    if (input_count == 0) {
+        return NS_STATUS_SUCCESS;
     }
-    if (cfg->button_1_enable) {
-        AM_HAL_GPIO_MASKCREATE(GpioIntMask1);
-        am_hal_gpio_interrupt_register(
-            AM_BSP_GPIO_BUTTON1, (am_hal_gpio_handler_t)ns_button_1_handler);
-        am_hal_gpio_interrupt_clear(AM_HAL_GPIO_MASKBIT(pGpioIntMask1, AM_BSP_GPIO_BUTTON1));
-        am_hal_gpio_interrupt_enable(AM_HAL_GPIO_MASKBIT(pGpioIntMask1, AM_BSP_GPIO_BUTTON1));
-    }
-    if (cfg->joulescope_trigger_enable) {
-        AM_HAL_GPIO_MASKCREATE(GpioIntMask2);
-        am_hal_gpio_interrupt_register(
-            ui32JoulescopeTriggerGpioNum, (am_hal_gpio_handler_t)ns_joulescope_trigger_handler);
-        am_hal_gpio_interrupt_clear(AM_HAL_GPIO_MASKBIT(pGpioIntMask2, 24));
-        am_hal_gpio_interrupt_enable(AM_HAL_GPIO_MASKBIT(pGpioIntMask2, 24));
-        // am_hal_gpio_interrupt_control(
-        //     AM_HAL_GPIO_INT_CHANNEL_0, AM_HAL_GPIO_INT_CTRL_INDV_ENABLE,
-        //     (void *)&ui32JoulescopeTriggerGpioNum);
+
+    for (idx = 0; idx < input_count; ++idx) {
+        uint32_t gpio_num = 0;
+        if (!inputs[idx].enable) {
+            continue;
+        }
+        if (inputs[idx].flag == NULL) {
+            return NS_STATUS_INVALID_HANDLE;
+        }
+
+        gpio_num = inputs[idx].gpio_num;
+        g_ns_peripheral_button_flags[idx] = inputs[idx].flag;
+
+        if (legacy_button_cfg[idx] && gpio_num == AM_BSP_GPIO_BUTTON0) {
+            am_hal_gpio_pinconfig(gpio_num, g_AM_BSP_GPIO_BUTTON0);
+        } else if (legacy_button_cfg[idx] && gpio_num == AM_BSP_GPIO_BUTTON1) {
+            am_hal_gpio_pinconfig(gpio_num, g_AM_BSP_GPIO_BUTTON1);
+        } else {
+            am_hal_gpio_pinconfig(gpio_num, *ns_button_input_cfg(inputs[idx].mode));
+        }
+
+        AM_HAL_GPIO_MASKCREATE(GpioIntMask);
+        am_hal_gpio_interrupt_register(gpio_num, ns_button_handler_for_index(idx));
+        am_hal_gpio_interrupt_clear(AM_HAL_GPIO_MASKBIT(pGpioIntMask, gpio_num));
+        am_hal_gpio_interrupt_enable(AM_HAL_GPIO_MASKBIT(pGpioIntMask, gpio_num));
     }
 
     NVIC_EnableIRQ(GPIO_IRQn);

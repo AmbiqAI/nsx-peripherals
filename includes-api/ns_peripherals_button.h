@@ -2,9 +2,9 @@
 //
 //! @file button.h
 //!
-//! @brief Utility for reading EVB Buttons.
+//! @brief Utility for reading board buttons and GPIO-backed trigger inputs.
 //!
-//! Purpose: Reading EVB buttons
+//! Purpose: Reading board buttons and other simple GPIO-backed inputs.
 //
 //*****************************************************************************
 
@@ -66,14 +66,30 @@ extern const ns_core_api_t ns_button_oldest_supported_version;
 extern const ns_core_api_t ns_button_current_version;
 #define NS_BUTTON_API_ID 0xCA0003
 
+typedef enum {
+    NS_BUTTON_INPUT_MODE_INPUT = 0,
+    NS_BUTTON_INPUT_MODE_INPUT_PULLUP = 1,
+} ns_button_input_mode_t;
+
+typedef struct {
+    bool enable;                ///< Enable this input
+    uint32_t gpio_num;          ///< GPIO number to monitor
+    ns_button_input_mode_t mode; ///< Basic input pin configuration
+    int volatile *flag;         ///< Flag set to 1 when the input fires
+} ns_button_input_t;
+
+#define NS_BUTTON_MAX_INPUTS 3
+
 typedef struct {
     ns_core_api_t const *api;              ///< API prefix
-    bool button_0_enable;                  ///< Enable button 0 monitoring
-    bool button_1_enable;                  ///< Enable button 1 monitoring
-    bool joulescope_trigger_enable;        ///< Enable joulescope trigger
-    int volatile *button_0_flag;           ///< Flag to set when button 0 is pressed
-    int volatile *button_1_flag;           ///< Flag to set when button 1 is pressed
-    int volatile *joulescope_trigger_flag; ///< Flag to set when joulescope trigger is pressed
+    uint32_t input_count;                  ///< Number of entries in `inputs` to use
+    ns_button_input_t inputs[NS_BUTTON_MAX_INPUTS]; ///< Generic input definitions
+    bool button_0_enable;                  ///< Deprecated compatibility field
+    bool button_1_enable;                  ///< Deprecated compatibility field
+    bool joulescope_trigger_enable;        ///< Deprecated compatibility field
+    int volatile *button_0_flag;           ///< Deprecated compatibility field
+    int volatile *button_1_flag;           ///< Deprecated compatibility field
+    int volatile *joulescope_trigger_flag; ///< Deprecated compatibility field
 } ns_button_config_t;
 
 /**
