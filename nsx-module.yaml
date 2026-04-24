@@ -55,3 +55,4 @@ compatibility:
     - apollo330P
   toolchains:
     - arm-none-eabi-gcc
+    - armclang
