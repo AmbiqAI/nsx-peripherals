@@ -1,38 +1,32 @@
 schema_version: 1
-
 module:
   name: nsx-peripherals
   type: backend_specific
-  version: "0.1.0"
-
+  version: 0.1.1
 support:
   ambiqsuite: true
   zephyr: false
-
-summary: Common peripheral-access helpers for board devices and attached hardware resources.
-
+summary: >-
+  Common peripheral-access helpers for board devices and attached hardware
+  resources.
 capabilities:
   - peripherals
   - device_access
   - board_io
-
 use_cases:
   - board peripheral bring-up
   - attached device access in smoke tests
   - reusable peripheral helpers outside a single bus wrapper
-
 agent_keywords:
   - peripherals
   - devices
   - board io
   - hardware access
-
 build:
   cmake:
     package: nsx_peripherals
     targets:
       - nsx::peripherals
-
 depends:
   required:
     - nsx-core
@@ -40,10 +34,9 @@ depends:
     - nsx-utils
     - nsx-soc-hal
   optional: []
-
 compatibility:
   boards:
-    - "*"
+    - '*'
   socs:
     - apollo3
     - apollo3p
